@@ -28,7 +28,7 @@ class ImplicitHostname(AnyUrl):
 
 class MediaBackendUrl(AnyUrl):
     host_required = False
-    allowed_schemes = {"s3", "gcs", "local"}
+    allowed_schemes = {"s3", "gs", "local"}
 
 
 def as_bool(v: str | list[str] | None):
@@ -87,7 +87,7 @@ class Settings(BaseSettings):
     #: An optional Sentry DSN for error reporting.
     SENTRY_DSN: str | None = None
     SENTRY_SAMPLE_RATE: float = 1.0
-    SENTRY_TRACES_SAMPLE_RATE: float = 1.0
+    SENTRY_TRACES_SAMPLE_RATE: float = 0.01
     SENTRY_CAPTURE_MESSAGES: bool = False
 
     #: Fallback domain for links.
@@ -107,6 +107,15 @@ class Settings(BaseSettings):
     #: is necessary for compatibility with Mastodon’s image proxy.
     MEDIA_MAX_IMAGE_FILESIZE_MB: int = 10
 
+    #: Maximum filesize for Avatars. Remote avatars larger than this size will
+    #: not be fetched and served from media, but served through the image proxy.
+    AVATAR_MAX_IMAGE_FILESIZE_KB: int = 1000
+
+    #: Maximum filesize for Emoji. Attempting to upload Local Emoji larger than this size will be
+    #: blocked. Remote Emoji larger than this size will not be fetched and served from media, but
+    #: served through the image proxy.
+    EMOJI_MAX_IMAGE_FILESIZE_KB: int = 200
+
     #: Request timeouts to use when talking to other servers Either
     #: float or tuple of floats for (connect, read, write, pool)
     REMOTE_TIMEOUT: float | tuple[float, float, float, float] = 5.0
@@ -118,11 +127,9 @@ class Settings(BaseSettings):
     #: Default cache backend
     CACHES_DEFAULT: CacheBackendUrl | None = None
 
-    #: User icon (avatar) caching backend
-    CACHES_AVATARS: CacheBackendUrl | None = None
-
-    #: Media caching backend
-    CACHES_MEDIA: CacheBackendUrl | None = None
+    # Stator tuning
+    STATOR_CONCURRENCY: int = 100
+    STATOR_CONCURRENCY_PER_MODEL: int = 40
 
     PGHOST: str | None = None
     PGPORT: int | None = 5432
@@ -169,16 +176,19 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "django_htmx",
+    "corsheaders",
     "core",
     "activities",
-    "users",
-    "stator",
+    "api",
     "mediaproxy",
+    "stator",
+    "users",
 ]
 
 MIDDLEWARE = [
     "core.middleware.SentryTaggingMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    "corsheaders.middleware.CorsMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -187,9 +197,11 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "django_htmx.middleware.HtmxMiddleware",
-    "core.middleware.AcceptMiddleware",
+    "core.middleware.HeadersMiddleware",
     "core.middleware.ConfigLoadingMiddleware",
+    "api.middleware.ApiTokenMiddleware",
     "users.middleware.IdentityMiddleware",
+    "activities.middleware.EmojiDefaultsLoadingMiddleware",
 ]
 
 ROOT_URLCONF = "takahe.urls"
@@ -270,6 +282,12 @@ STATICFILES_FINDERS = [
 
 STATICFILES_DIRS = [BASE_DIR / "static"]
 
+STATICFILES_STORAGE = "django.contrib.staticfiles.storage.ManifestStaticFilesStorage"
+
+SESSION_ENGINE = "django.contrib.sessions.backends.signed_cookies"
+
+WHITENOISE_MAX_AGE = 3600
+
 STATIC_ROOT = BASE_DIR / "static-collected"
 
 ALLOWED_HOSTS = SETUP.ALLOWED_HOSTS
@@ -277,7 +295,10 @@ ALLOWED_HOSTS = SETUP.ALLOWED_HOSTS
 AUTO_ADMIN_EMAIL = SETUP.AUTO_ADMIN_EMAIL
 
 STATOR_TOKEN = SETUP.STATOR_TOKEN
+STATOR_CONCURRENCY = SETUP.STATOR_CONCURRENCY
+STATOR_CONCURRENCY_PER_MODEL = SETUP.STATOR_CONCURRENCY_PER_MODEL
 
+CORS_ORIGIN_ALLOW_ALL = True  # Temporary
 CORS_ORIGIN_WHITELIST = SETUP.CORS_HOSTS
 CORS_ALLOW_CREDENTIALS = True
 CORS_PREFLIGHT_MAX_AGE = 604800
@@ -287,6 +308,7 @@ CSRF_TRUSTED_ORIGINS = SETUP.CSRF_HOSTS
 MEDIA_URL = SETUP.MEDIA_URL
 MEDIA_ROOT = SETUP.MEDIA_ROOT
 MAIN_DOMAIN = SETUP.MAIN_DOMAIN
+
 
 if SETUP.USE_PROXY_HEADERS:
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
@@ -332,15 +354,15 @@ if SETUP.EMAIL_SERVER:
 if SETUP.MEDIA_BACKEND:
     parsed = urllib.parse.urlparse(SETUP.MEDIA_BACKEND)
     query = urllib.parse.parse_qs(parsed.query)
-    if parsed.scheme == "gcs":
-        DEFAULT_FILE_STORAGE = "storages.backends.gcloud.GoogleCloudStorage"
-        if parsed.path.lstrip("/"):
-            GS_BUCKET_NAME = parsed.path.lstrip("/")
-        else:
-            GS_BUCKET_NAME = parsed.hostname
+    if parsed.scheme == "gs":
+        DEFAULT_FILE_STORAGE = "core.uploads.TakaheGoogleCloudStorage"
+        GS_BUCKET_NAME = parsed.path.lstrip("/")
         GS_QUERYSTRING_AUTH = False
+        if parsed.hostname is not None:
+            port = parsed.port or 443
+            GS_CUSTOM_ENDPOINT = f"https://{parsed.hostname}:{port}"
     elif parsed.scheme == "s3":
-        DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
+        DEFAULT_FILE_STORAGE = "core.uploads.TakaheS3Storage"
         AWS_STORAGE_BUCKET_NAME = parsed.path.lstrip("/")
         AWS_QUERYSTRING_AUTH = False
         AWS_DEFAULT_ACL = "public-read"
@@ -350,6 +372,9 @@ if SETUP.MEDIA_BACKEND:
         if parsed.hostname is not None:
             port = parsed.port or 443
             AWS_S3_ENDPOINT_URL = f"https://{parsed.hostname}:{port}"
+        if SETUP.MEDIA_URL is not None:
+            media_url_parsed = urllib.parse.urlparse(SETUP.MEDIA_URL)
+            AWS_S3_CUSTOM_DOMAIN = media_url_parsed.hostname
     elif parsed.scheme == "local":
         if not (MEDIA_ROOT and MEDIA_URL):
             raise ValueError(
@@ -360,8 +385,6 @@ if SETUP.MEDIA_BACKEND:
 
 CACHES = {
     "default": django_cache_url.parse(SETUP.CACHES_DEFAULT or "dummy://"),
-    "avatars": django_cache_url.parse(SETUP.CACHES_AVATARS or "dummy://"),
-    "media": django_cache_url.parse(SETUP.CACHES_MEDIA or "dummy://"),
 }
 
 if SETUP.ERROR_EMAILS:

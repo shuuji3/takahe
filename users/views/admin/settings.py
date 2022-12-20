@@ -38,6 +38,10 @@ class BasicSettings(AdminSettingsPage):
             "title": "Maximum Post Length",
             "help_text": "The maximum number of characters allowed per post",
         },
+        "post_minimum_interval": {
+            "title": "Minimum Posting Interval",
+            "help_text": "The minimum number of seconds a user must wait between posts",
+        },
         "content_warning_text": {
             "title": "Content Warning Feature Name",
             "help_text": "What the feature that lets users provide post summaries is called",
@@ -73,7 +77,7 @@ class BasicSettings(AdminSettingsPage):
         },
         "signup_text": {
             "title": "Signup Page Text",
-            "help_text": "Shown above the signup form",
+            "help_text": "Shown above the signup form.\nUse Markdown for formatting.",
             "display": "textarea",
         },
         "restricted_usernames": {
@@ -84,6 +88,10 @@ class BasicSettings(AdminSettingsPage):
         "hashtag_unreviewed_are_public": {
             "title": "Unreviewed Hashtags Are Public",
             "help_text": "Public Hashtags may appear in Trending and have a Tags timeline",
+        },
+        "emoji_unreviewed_are_public": {
+            "title": "Unreviewed Emoji Are Public",
+            "help_text": "Public Emoji may appear as images, instead of shortcodes",
         },
     }
 
@@ -98,8 +106,10 @@ class BasicSettings(AdminSettingsPage):
         "Signups": ["signup_allowed", "signup_invite_only", "signup_text"],
         "Posts": [
             "post_length",
+            "post_minimum_interval",
             "content_warning_text",
             "hashtag_unreviewed_are_public",
+            "emoji_unreviewed_are_public",
         ],
         "Identities": [
             "identity_max_per_user",
@@ -164,17 +174,17 @@ class PoliciesSettings(AdminSettingsPage):
     options = {
         "policy_terms": {
             "title": "Terms of Service Page",
-            "help_text": "Will only be shown if it has content. Use Markdown for formatting.",
+            "help_text": "Will only be shown if it has content. Use Markdown for formatting.\nIf you would like to redirect elsewhere, enter just a URL.",
             "display": "textarea",
         },
         "policy_privacy": {
             "title": "Privacy Policy Page",
-            "help_text": "Will only be shown if it has content. Use Markdown for formatting.",
+            "help_text": "Will only be shown if it has content. Use Markdown for formatting.\nIf you would like to redirect elsewhere, enter just a URL.",
             "display": "textarea",
         },
         "policy_rules": {
             "title": "Server Rules Page",
-            "help_text": "Will only be shown if it has content. Use Markdown for formatting.",
+            "help_text": "Will only be shown if it has content. Use Markdown for formatting.\nIf you would like to redirect elsewhere, enter just a URL.",
             "display": "textarea",
         },
     }

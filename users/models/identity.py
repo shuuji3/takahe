@@ -7,16 +7,22 @@ import urlman
 from asgiref.sync import async_to_sync, sync_to_async
 from django.db import IntegrityError, models
 from django.template.defaultfilters import linebreaks_filter
-from django.templatetags.static import static
 from django.utils import timezone
 from django.utils.functional import lazy
 
 from core.exceptions import ActorMismatchError
-from core.html import sanitize_post, strip_html
-from core.ld import canonicalise, get_list, media_type_from_filename
+from core.html import ContentRenderer, strip_html
+from core.ld import (
+    canonicalise,
+    format_ld_date,
+    get_first_image_url,
+    get_list,
+    media_type_from_filename,
+)
 from core.models import Config
 from core.signatures import HttpSignature, RsaKeys
 from core.uploads import upload_namer
+from core.uris import AutoAbsoluteUrl, RelativeAbsoluteUrl, StaticAbsoluteUrl
 from stator.models import State, StateField, StateGraph, StatorModel
 from users.models.domain import Domain
 from users.models.system_actor import SystemActor
@@ -55,6 +61,13 @@ class Identity(StatorModel):
     Represents both local and remote Fediverse identities (actors)
     """
 
+    class Restriction(models.IntegerChoices):
+        none = 0
+        limited = 1
+        blocked = 2
+
+    ACTOR_TYPES = ["person", "service", "application", "group", "organization"]
+
     # The Actor URI is essentially also a PK - we keep the default numeric
     # one around as well for making nice URLs etc.
     actor_uri = models.CharField(max_length=500, unique=True)
@@ -91,6 +104,7 @@ class Identity(StatorModel):
     image_uri = models.CharField(max_length=500, blank=True, null=True)
     followers_uri = models.CharField(max_length=500, blank=True, null=True)
     following_uri = models.CharField(max_length=500, blank=True, null=True)
+    actor_type = models.CharField(max_length=100, default="person")
 
     icon = models.ImageField(
         upload_to=partial(upload_namer, "profile_images"), blank=True, null=True
@@ -104,6 +118,13 @@ class Identity(StatorModel):
 
     # Should be a list of object URIs (we don't want a full M2M here)
     pinned = models.JSONField(blank=True, null=True)
+
+    # Admin-only moderation fields
+    sensitive = models.BooleanField(default=False)
+    restriction = models.IntegerField(
+        choices=Restriction.choices, default=Restriction.none
+    )
+    admin_notes = models.TextField(null=True, blank=True)
 
     private_key = models.TextField(null=True, blank=True)
     public_key = models.TextField(null=True, blank=True)
@@ -124,6 +145,8 @@ class Identity(StatorModel):
         view = "/@{self.username}@{self.domain_id}/"
         action = "{view}action/"
         activate = "{view}activate/"
+        admin = "/admin/identities/"
+        admin_edit = "{admin}{self.pk}/"
 
         def get_scheme(self, url):
             return "https"
@@ -146,38 +169,41 @@ class Identity(StatorModel):
         else:
             return self.profile_uri
 
-    def local_icon_url(self):
+    def local_icon_url(self) -> RelativeAbsoluteUrl:
         """
-        Returns an icon for us, with fallbacks to a placeholder
+        Returns an icon for use by us, with fallbacks to a placeholder
         """
         if self.icon:
-            return self.icon.url
+            return RelativeAbsoluteUrl(self.icon.url)
         elif self.icon_uri:
-            return f"/proxy/identity_icon/{self.pk}/"
+            return AutoAbsoluteUrl(f"/proxy/identity_icon/{self.pk}/")
         else:
-            return static("img/unknown-icon-128.png")
+            return StaticAbsoluteUrl("img/unknown-icon-128.png")
 
-    def local_image_url(self):
+    def local_image_url(self) -> RelativeAbsoluteUrl | None:
         """
         Returns a background image for us, returning None if there isn't one
         """
         if self.image:
-            return self.image.url
+            return RelativeAbsoluteUrl(self.image.url)
         elif self.image_uri:
-            return f"/proxy/identity_image/{self.pk}/"
+            return AutoAbsoluteUrl(f"/proxy/identity_image/{self.pk}/")
+        return None
 
     @property
     def safe_summary(self):
-        return sanitize_post(self.summary)
+        return ContentRenderer(local=True).render_identity(self.summary, self)
 
     @property
     def safe_metadata(self):
+        renderer = ContentRenderer(local=True)
+
         if not self.metadata:
             return []
         return [
             {
-                "name": data["name"],
-                "value": strip_html(data["value"]),
+                "name": renderer.render_identity(data["name"], self, strip=True),
+                "value": renderer.render_identity(data["value"], self, strip=True),
             }
             for data in self.metadata
         ]
@@ -192,9 +218,16 @@ class Identity(StatorModel):
         domain = domain.lower()
         try:
             if local:
-                return cls.objects.get(username=username, domain_id=domain, local=True)
+                return cls.objects.get(
+                    username=username,
+                    domain_id=domain,
+                    local=True,
+                )
             else:
-                return cls.objects.get(username=username, domain_id=domain)
+                return cls.objects.get(
+                    username=username,
+                    domain_id=domain,
+                )
         except cls.DoesNotExist:
             if fetch and not local:
                 actor_uri, handle = async_to_sync(cls.fetch_webfinger)(
@@ -239,6 +272,15 @@ class Identity(StatorModel):
     def name_or_handle(self):
         return self.name or self.handle
 
+    @cached_property
+    def html_name_or_handle(self):
+        """
+        Return the name_or_handle with any HTML substitutions made
+        """
+        return ContentRenderer(local=True).render_identity(
+            self.name_or_handle, self, strip=True
+        )
+
     @property
     def handle(self):
         if self.username is None:
@@ -263,13 +305,22 @@ class Identity(StatorModel):
         # TODO: Setting
         return self.data_age > 60 * 24 * 24
 
+    @property
+    def blocked(self) -> bool:
+        return self.restriction == self.Restriction.blocked
+
+    @property
+    def limited(self) -> bool:
+        return self.restriction == self.Restriction.limited
+
     ### ActivityPub (outbound) ###
 
     def to_ap(self):
         response = {
             "id": self.actor_uri,
-            "type": "Person",
+            "type": self.actor_type.title(),
             "inbox": self.actor_uri + "inbox/",
+            "outbox": self.actor_uri + "outbox/",
             "preferredUsername": self.username,
             "publicKey": {
                 "id": self.public_key_id,
@@ -278,7 +329,7 @@ class Identity(StatorModel):
             },
             "published": self.created.strftime("%Y-%m-%dT%H:%M:%SZ"),
             "url": self.absolute_profile_uri(),
-            "http://joinmastodon.org/ns#discoverable": self.discoverable,
+            "toot:discoverable": self.discoverable,
         }
         if self.name:
             response["name"] = self.name
@@ -301,6 +352,16 @@ class Identity(StatorModel):
                 "sharedInbox": f"https://{self.domain.uri_domain}/inbox/",
             }
         return response
+
+    def to_ap_tag(self):
+        """
+        Return this Identity as an ActivityPub Tag
+        """
+        return {
+            "href": self.actor_uri,
+            "name": "@" + self.handle,
+            "type": "Mention",
+        }
 
     ### ActivityPub (inbound) ###
 
@@ -345,11 +406,12 @@ class Identity(StatorModel):
         """
         domain = handle.split("@")[1].lower()
         try:
-            response = await SystemActor().signed_request(
-                method="get",
-                uri=f"https://{domain}/.well-known/webfinger?resource=acct:{handle}",
-            )
-        except (httpx.RequestError, httpx.ConnectError):
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"https://{domain}/.well-known/webfinger?resource=acct:{handle}",
+                    follow_redirects=True,
+                )
+        except httpx.RequestError:
             return None, None
         if response.status_code in [404, 410]:
             return None, None
@@ -360,7 +422,13 @@ class Identity(StatorModel):
                 f"Client error fetching webfinger: {response.status_code}",
                 response.content,
             )
-        data = response.json()
+        try:
+            data = response.json()
+        except ValueError:
+            raise ValueError(
+                "JSON parse error fetching webfinger",
+                response.content,
+            )
         if data["subject"].startswith("acct:"):
             data["subject"] = data["subject"][5:]
         for link in data["links"]:
@@ -376,6 +444,8 @@ class Identity(StatorModel):
         Fetches the user's actor information, as well as their domain from
         webfinger if it's available.
         """
+        from activities.models import Emoji
+
         if self.local:
             raise ValueError("Cannot fetch local identities")
         try:
@@ -383,7 +453,7 @@ class Identity(StatorModel):
                 method="get",
                 uri=self.actor_uri,
             )
-        except (httpx.ConnectError, httpx.RequestError):
+        except httpx.RequestError:
             return False
         if response.status_code == 410:
             # Their account got deleted, so let's do the same.
@@ -406,6 +476,7 @@ class Identity(StatorModel):
         self.outbox_uri = document.get("outbox")
         self.followers_uri = document.get("followers")
         self.following_uri = document.get("following")
+        self.actor_type = document["type"].lower()
         self.shared_inbox_uri = document.get("endpoints", {}).get("sharedInbox")
         self.summary = document.get("summary")
         self.username = document.get("preferredUsername")
@@ -413,14 +484,12 @@ class Identity(StatorModel):
             self.username = self.username["@value"]
         if self.username:
             self.username = self.username.lower()
-        self.manually_approves_followers = document.get("as:manuallyApprovesFollowers")
+        self.manually_approves_followers = document.get("manuallyApprovesFollowers")
         self.public_key = document.get("publicKey", {}).get("publicKeyPem")
         self.public_key_id = document.get("publicKey", {}).get("id")
-        self.icon_uri = document.get("icon", {}).get("url")
-        self.image_uri = document.get("image", {}).get("url")
-        self.discoverable = document.get(
-            "http://joinmastodon.org/ns#discoverable", True
-        )
+        self.icon_uri = get_first_image_url(document.get("icon", None))
+        self.image_uri = get_first_image_url(document.get("image", None))
+        self.discoverable = document.get("toot:discoverable", True)
         # Profile links/metadata
         self.metadata = []
         for attachment in get_list(document, "attachment"):
@@ -450,6 +519,11 @@ class Identity(StatorModel):
                 self.domain = await get_domain(actor_url_parts.hostname)
         else:
             self.domain = await get_domain(actor_url_parts.hostname)
+        # Emojis (we need the domain so we do them here)
+        for tag in get_list(document, "tag"):
+            if tag["type"].lower() == "toot:emoji":
+                await sync_to_async(Emoji.by_ap_tag)(self.domain, tag, create=True)
+        # Mark as fetched
         self.fetched = timezone.now()
         try:
             await sync_to_async(self.save)()
@@ -465,6 +539,53 @@ class Identity(StatorModel):
                 self.pk: int | None = other_row.pk
                 await sync_to_async(self.save)()
         return True
+
+    ### Mastodon Client API ###
+
+    def to_mastodon_json(self):
+        from activities.models import Emoji
+
+        header_image = self.local_image_url()
+        metadata_value_text = (
+            " ".join([m["value"] for m in self.metadata]) if self.metadata else ""
+        )
+        emojis = Emoji.emojis_from_content(
+            f"{self.name} {self.summary} {metadata_value_text}", self.domain
+        )
+        return {
+            "id": self.pk,
+            "username": self.username or "",
+            "acct": self.username if self.local else self.handle,
+            "url": self.absolute_profile_uri() or "",
+            "display_name": self.name or "",
+            "note": self.summary or "",
+            "avatar": self.local_icon_url().absolute,
+            "avatar_static": self.local_icon_url().absolute,
+            "header": header_image.absolute if header_image else None,
+            "header_static": header_image.absolute if header_image else None,
+            "locked": False,
+            "fields": (
+                [
+                    {"name": m["name"], "value": m["value"], "verified_at": None}
+                    for m in self.metadata
+                ]
+                if self.metadata
+                else []
+            ),
+            "emojis": [emoji.to_mastodon_json() for emoji in emojis],
+            "bot": False,
+            "group": False,
+            "discoverable": self.discoverable,
+            "suspended": False,
+            "limited": False,
+            "created_at": format_ld_date(
+                self.created.replace(hour=0, minute=0, second=0, microsecond=0)
+            ),
+            "last_status_at": None,  # TODO: populate
+            "statuses_count": self.posts.count(),
+            "followers_count": self.inbound_follows.count(),
+            "following_count": self.outbound_follows.count(),
+        }
 
     ### Cryptography ###
 

@@ -13,10 +13,10 @@
 {% block content %}
     <h1 class="identity">
         {% if identity.local_image_url %}
-            <img src="{{ identity.local_image_url }}" class="banner">
+            <img src="{{ identity.local_image_url.relative }}" class="banner">
         {% endif %}
 
-        <img src="{{ identity.local_icon_url }}" class="icon">
+        <img src="{{ identity.local_icon_url.relative }}" class="icon">
 
         {% if request.identity %}
             {% if identity == request.identity %}
@@ -40,7 +40,7 @@
             {% endif %}
         {% endif %}
 
-        {{ identity.name_or_handle }}
+        {{ identity.html_name_or_handle }}
         <small>
             @{{ identity.handle }}
             <a title="Copy handle"
@@ -65,11 +65,20 @@
         <table class="metadata">
             {% for entry in identity.safe_metadata %}
                 <tr>
-                    <td class="name">{{ entry.name }}</td>
-                    <td class="value">{{ entry.value }}</td>
+                    <th>{{ entry.name }}</td>
+                    <td>{{ entry.value }}</td>
                 </tr>
             {% endfor %}
-            </table>
+        </table>
+    {% endif %}
+
+    {% if identity.config_identity.visible_follows %}
+      <div class="stats">
+        <ul>
+          <li><strong>{{ following_count }}</strong> following</li>
+          <li><strong>{{ followers_count }}</strong> followers</li>
+        </ul>
+      </div>
     {% endif %}
 
     {% if not identity.local %}

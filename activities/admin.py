@@ -1,8 +1,10 @@
 from asgiref.sync import async_to_sync
 from django.contrib import admin
+from django.utils.safestring import mark_safe
 from django.utils.translation import gettext_lazy as _
 
 from activities.models import (
+    Emoji,
     FanOut,
     Hashtag,
     Post,
@@ -50,6 +52,46 @@ class HashtagAdmin(admin.ModelAdmin):
             instance.transition_perform("outdated")
 
 
+@admin.register(Emoji)
+class EmojiAdmin(admin.ModelAdmin):
+    list_display = (
+        "shortcode",
+        "preview",
+        "local",
+        "domain",
+        "public",
+        "state",
+        "created",
+    )
+    list_filter = ("local", "public", "state")
+    search_fields = ("shortcode",)
+
+    readonly_fields = ["preview", "created", "updated", "to_ap_tag"]
+
+    actions = ["force_execution", "approve_emoji", "reject_emoji"]
+
+    @admin.action(description="Force Execution")
+    def force_execution(self, request, queryset):
+        for instance in queryset:
+            instance.transition_perform("outdated")
+
+    @admin.action(description="Approve Emoji")
+    def approve_emoji(self, request, queryset):
+        queryset.update(public=True)
+
+    @admin.action(description="Reject Emoji")
+    def reject_emoji(self, request, queryset):
+        queryset.update(public=False)
+
+    @admin.display(description="Emoji Preview")
+    def preview(self, instance):
+        if instance.public is False:
+            return mark_safe(f'<a href="{instance.full_url().relative}">Preview</a>')
+        return mark_safe(
+            f'<img src="{instance.full_url().relative}" style="height: 22px">'
+        )
+
+
 @admin.register(PostAttachment)
 class PostAttachmentAdmin(admin.ModelAdmin):
     list_display = ["id", "post", "created"]
@@ -62,18 +104,13 @@ class PostAttachmentInline(admin.StackedInline):
 
 @admin.register(Post)
 class PostAdmin(admin.ModelAdmin):
-    list_display = ["id", "state", "author", "created"]
-    list_filter = ("local", "visibility", "state", "created")
-    raw_id_fields = ["to", "mentions", "author"]
-    actions = ["force_fetch", "reparse_hashtags"]
+    list_display = ["id", "type", "author", "state", "created"]
+    list_filter = ("type", "local", "visibility", "state", "created")
+    raw_id_fields = ["to", "mentions", "author", "emojis"]
+    actions = ["reparse_hashtags"]
     search_fields = ["content"]
     inlines = [PostAttachmentInline]
-    readonly_fields = ["created", "updated", "object_json"]
-
-    @admin.action(description="Force Fetch")
-    def force_fetch(self, request, queryset):
-        for instance in queryset:
-            instance.debug_fetch()
+    readonly_fields = ["created", "updated", "state_changed", "object_json"]
 
     @admin.action(description="Reprocess content for hashtags")
     def reparse_hashtags(self, request, queryset):
@@ -95,7 +132,7 @@ class PostAdmin(admin.ModelAdmin):
 
 @admin.register(TimelineEvent)
 class TimelineEventAdmin(admin.ModelAdmin):
-    list_display = ["id", "identity", "created", "type"]
+    list_display = ["id", "identity", "published", "type"]
     list_filter = (IdentityLocalFilter, "type")
     readonly_fields = ["created"]
     raw_id_fields = [
@@ -111,11 +148,12 @@ class TimelineEventAdmin(admin.ModelAdmin):
 
 @admin.register(FanOut)
 class FanOutAdmin(admin.ModelAdmin):
-    list_display = ["id", "state", "state_attempted", "type", "identity"]
+    list_display = ["id", "state", "created", "state_attempted", "type", "identity"]
     list_filter = (IdentityLocalFilter, "type", "state", "state_attempted")
     raw_id_fields = ["identity", "subject_post", "subject_post_interaction"]
-    readonly_fields = ["created", "updated"]
+    readonly_fields = ["created", "updated", "state_changed"]
     actions = ["force_execution"]
+    search_fields = ["identity__username"]
 
     @admin.action(description="Force Execution")
     def force_execution(self, request, queryset):

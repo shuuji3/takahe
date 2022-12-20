@@ -2,6 +2,7 @@ import datetime
 import os
 import urllib.parse as urllib_parse
 
+from dateutil import parser
 from pyld import jsonld
 from pyld.jsonld import JsonLdError
 
@@ -366,6 +367,7 @@ schemas = {
 }
 
 DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
+DATETIME_TZ_FORMAT = "%Y-%m-%dT%H:%M:%S+00:00"
 DATETIME_MS_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
 
 
@@ -407,14 +409,22 @@ def canonicalise(json_data: dict, include_security: bool = False) -> dict:
     """
     if not isinstance(json_data, dict):
         raise ValueError("Pass decoded JSON data into LDDocument")
-    context: str | list[str]
+    context = [
+        "https://www.w3.org/ns/activitystreams",
+        {
+            "blurhash": "toot:blurhash",
+            "Emoji": "toot:Emoji",
+            "focalPoint": {"@container": "@list", "@id": "toot:focalPoint"},
+            "Hashtag": "as:Hashtag",
+            "manuallyApprovesFollowers": "as:manuallyApprovesFollowers",
+            "Public": "as:Public",
+            "sensitive": "as:sensitive",
+            "toot": "http://joinmastodon.org/ns#",
+            "votersCount": "toot:votersCount",
+        },
+    ]
     if include_security:
-        context = [
-            "https://www.w3.org/ns/activitystreams",
-            "https://w3id.org/security/v1",
-        ]
-    else:
-        context = "https://www.w3.org/ns/activitystreams"
+        context.append("https://w3id.org/security/v1")
     if "@context" not in json_data:
         json_data["@context"] = context
 
@@ -440,15 +450,21 @@ def format_ld_date(value: datetime.datetime) -> str:
 def parse_ld_date(value: str | None) -> datetime.datetime | None:
     if value is None:
         return None
-    try:
-        return datetime.datetime.strptime(value, DATETIME_FORMAT).replace(
-            tzinfo=datetime.timezone.utc
-        )
-    except ValueError:
-        return datetime.datetime.strptime(value, DATETIME_MS_FORMAT).replace(
-            tzinfo=datetime.timezone.utc,
-            microsecond=0,
-        )
+    return parser.isoparse(value).replace(microsecond=0)
+
+
+def get_first_image_url(data) -> str | None:
+    """
+    'icon' and 'image' fields might be a dict or a list. Return the first
+    'url' for something that looks to be for an image.
+    """
+    if isinstance(data, list):
+        for itm in data:
+            if isinstance(itm, dict) and "url" in itm:
+                return itm["url"]
+    elif isinstance(data, dict):
+        return data.get("url")
+    return None
 
 
 def media_type_from_filename(filename):

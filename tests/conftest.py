@@ -1,7 +1,10 @@
 import time
 
 import pytest
+from django.conf import settings
 
+from activities.models import Emoji
+from api.models import Application, Token
 from core.models import Config
 from stator.runner import StatorModel, StatorRunner
 from users.models import Domain, Identity, User
@@ -54,6 +57,11 @@ kwIDAQAB
     }
 
 
+@pytest.fixture(autouse=True)
+def _test_settings(settings):
+    settings.STATICFILES_STORAGE = None
+
+
 @pytest.fixture
 def config_system(keypair):
     Config.system = Config.SystemOptions(
@@ -64,6 +72,29 @@ def config_system(keypair):
     yield Config.system
     Config.__forced__ = False
     del Config.system
+
+
+@pytest.fixture
+def client_with_identity(client, identity, user):
+    """
+    Provides a logged-in test client with an identity selected
+    """
+    client.force_login(user)
+    session = client.session
+    session["identity_id"] = identity.id
+    session.save()
+    client.cookies[settings.SESSION_COOKIE_NAME] = session.session_key
+    return client
+
+
+@pytest.fixture
+@pytest.mark.django_db
+def emoji_locals():
+    Emoji.locals = Emoji.load_locals()
+    Emoji.__forced__ = True
+    yield Emoji.locals
+    Emoji.__forced__ = False
+    del Emoji.locals
 
 
 @pytest.fixture
@@ -172,6 +203,26 @@ def remote_identity2() -> Identity:
 
 
 @pytest.fixture
+@pytest.mark.django_db
+def api_token(identity) -> Token:
+    """
+    Creates an API application, an identity, and a token for that identity
+    """
+    application = Application.objects.create(
+        name="Test App",
+        client_id="tk-test",
+        client_secret="mytestappsecret",
+    )
+    return Token.objects.create(
+        application=application,
+        user=identity.users.first(),
+        identity=identity,
+        token="mytestapitoken",
+        scopes=["read", "write", "follow", "push"],
+    )
+
+
+@pytest.fixture
 def stator(config_system) -> StatorRunner:
     """
     Return an initialized StatorRunner for tests that need state transitioning
@@ -186,7 +237,7 @@ def stator(config_system) -> StatorRunner:
         concurrency=100,
         schedule_interval=30,
     )
-    runner.handled = 0
+    runner.handled = {}
     runner.started = time.monotonic()
     runner.last_clean = time.monotonic() - runner.schedule_interval
     runner.tasks = []

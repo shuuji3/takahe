@@ -1,13 +1,13 @@
 from django.conf import settings as djsettings
 from django.contrib import admin as djadmin
 from django.urls import path, re_path
-from django.views.static import serve
 
-from activities.views import compose, explore, follows, posts, search, timelines
+from activities.views import compose, debug, explore, follows, posts, search, timelines
+from api.views import api_router, oauth
 from core import views as core
 from mediaproxy import views as mediaproxy
 from stator import views as stator
-from users.views import activitypub, admin, auth, identity, settings
+from users.views import activitypub, admin, auth, identity, report, settings
 
 urlpatterns = [
     path("", core.homepage),
@@ -17,12 +17,13 @@ urlpatterns = [
     path("local/", timelines.Local.as_view(), name="local"),
     path("federated/", timelines.Federated.as_view(), name="federated"),
     path("search/", search.Search.as_view(), name="search"),
+    path("debug/json/", debug.JsonViewer.as_view(), name="debug_json"),
     path("tags/<hashtag>/", timelines.Tag.as_view(), name="tag"),
     path("explore/", explore.Explore.as_view(), name="explore"),
     path("explore/tags/", explore.ExploreTag.as_view(), name="explore-tag"),
     path(
         "follows/",
-        follows.FollowsPage.as_view(),
+        follows.Follows.as_view(),
         name="follows",
     ),
     # Settings views
@@ -96,18 +97,48 @@ urlpatterns = [
     ),
     path(
         "admin/users/",
-        admin.Users.as_view(),
+        admin.UsersRoot.as_view(),
         name="admin_users",
     ),
     path(
+        "admin/users/<id>/",
+        admin.UserEdit.as_view(),
+        name="admin_user_edit",
+    ),
+    path(
         "admin/identities/",
-        admin.Identities.as_view(),
+        admin.IdentitiesRoot.as_view(),
         name="admin_identities",
     ),
     path(
+        "admin/identities/<id>/",
+        admin.IdentityEdit.as_view(),
+        name="admin_identity_edit",
+    ),
+    path(
+        "admin/reports/",
+        admin.ReportsRoot.as_view(),
+        name="admin_reports",
+    ),
+    path(
+        "admin/reports/<id>/",
+        admin.ReportView.as_view(),
+        name="admin_report_view",
+    ),
+    path(
         "admin/invites/",
-        admin.Invites.as_view(),
+        admin.InvitesRoot.as_view(),
         name="admin_invites",
+    ),
+    path(
+        "admin/invites/create/",
+        admin.InviteCreate.as_view(),
+        name="admin_invite_create",
+    ),
+    path(
+        "admin/invites/<id>/",
+        admin.InviteView.as_view(),
+        name="admin_invite_view",
     ),
     path(
         "admin/hashtags/",
@@ -115,23 +146,21 @@ urlpatterns = [
         name="admin_hashtags",
     ),
     path(
-        "admin/hashtags/create/",
-        admin.HashtagCreate.as_view(),
-        name="admin_hashtags_create",
-    ),
-    path(
         "admin/hashtags/<hashtag>/",
         admin.HashtagEdit.as_view(),
     ),
     path(
-        "admin/hashtags/<hashtag>/delete/",
-        admin.HashtagDelete.as_view(),
+        "admin/stator/",
+        admin.Stator.as_view(),
+        name="admin_stator",
     ),
     # Identity views
     path("@<handle>/", identity.ViewIdentity.as_view()),
     path("@<handle>/inbox/", activitypub.Inbox.as_view()),
+    path("@<handle>/outbox/", activitypub.Outbox.as_view()),
     path("@<handle>/action/", identity.ActionIdentity.as_view()),
     path("@<handle>/rss/", identity.IdentityFeed()),
+    path("@<handle>/report/", report.SubmitReport.as_view()),
     # Posts
     path("compose/", compose.Compose.as_view(), name="compose"),
     path(
@@ -145,6 +174,7 @@ urlpatterns = [
     path("@<handle>/posts/<int:post_id>/boost/", posts.Boost.as_view()),
     path("@<handle>/posts/<int:post_id>/unboost/", posts.Boost.as_view(undo=True)),
     path("@<handle>/posts/<int:post_id>/delete/", posts.Delete.as_view()),
+    path("@<handle>/posts/<int:post_id>/report/", report.SubmitReport.as_view()),
     path("@<handle>/posts/<int:post_id>/edit/", compose.Compose.as_view()),
     # Authentication
     path("auth/login/", auth.Login.as_view(), name="login"),
@@ -193,6 +223,11 @@ urlpatterns = [
         mediaproxy.PostAttachmentCacheView.as_view(),
         name="proxy_post_attachment",
     ),
+    path(
+        "proxy/emoji/<emoji_id>/",
+        mediaproxy.EmojiCacheView.as_view(),
+        name="proxy_emoji",
+    ),
     # Well-known endpoints and system actor
     path(".well-known/webfinger", activitypub.Webfinger.as_view()),
     path(".well-known/host-meta", activitypub.HostMeta.as_view()),
@@ -200,7 +235,13 @@ urlpatterns = [
     path("nodeinfo/2.0/", activitypub.NodeInfo2.as_view()),
     path("actor/", activitypub.SystemActorView.as_view()),
     path("actor/inbox/", activitypub.Inbox.as_view()),
+    path("actor/outbox/", activitypub.EmptyOutbox.as_view()),
     path("inbox/", activitypub.Inbox.as_view(), name="shared_inbox"),
+    # API/Oauth
+    path("api/", api_router.urls),
+    path("oauth/authorize", oauth.AuthorizationView.as_view()),
+    path("oauth/token", oauth.TokenView.as_view()),
+    path("oauth/revoke_token", oauth.RevokeTokenView.as_view()),
     # Stator
     path(".stator/", stator.RequestRunner.as_view()),
     # Django admin
@@ -208,7 +249,7 @@ urlpatterns = [
     # Media files
     re_path(
         r"^media/(?P<path>.*)$",
-        serve,
+        core.custom_static_serve,
         kwargs={"document_root": djsettings.MEDIA_ROOT},
     ),
 ]

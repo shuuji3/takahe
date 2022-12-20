@@ -271,7 +271,7 @@ class PostInteraction(StatorModel):
                     type=type,
                 )
             else:
-                raise KeyError(f"No post with ID {data['id']}", data)
+                raise cls.DoesNotExist(f"No interaction with ID {data['id']}", data)
         return boost
 
     @classmethod
@@ -281,7 +281,12 @@ class PostInteraction(StatorModel):
         """
         with transaction.atomic():
             # Create it
-            interaction = cls.by_ap(data, create=True)
+            try:
+                interaction = cls.by_ap(data, create=True)
+            except (cls.DoesNotExist, Post.DoesNotExist):
+                # That post is gone, boss
+                # TODO: Limited retry state?
+                return
             # Boosts (announces) go to everyone who follows locally
             if interaction.type == cls.Types.boost:
                 for follow in Follow.objects.filter(
@@ -301,7 +306,11 @@ class PostInteraction(StatorModel):
         """
         with transaction.atomic():
             # Find it
-            interaction = cls.by_ap(data["object"])
+            try:
+                interaction = cls.by_ap(data["object"])
+            except (cls.DoesNotExist, Post.DoesNotExist):
+                # Well I guess we don't need to undo it do we
+                return
             # Verify the actor matches
             if data["actor"] != interaction.identity.actor_uri:
                 raise ValueError("Actor mismatch on interaction undo")

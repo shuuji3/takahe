@@ -9,6 +9,7 @@ from users.models import (
     InboxMessage,
     Invite,
     PasswordReset,
+    Report,
     User,
     UserEvent,
 )
@@ -89,7 +90,13 @@ class PasswordResetAdmin(admin.ModelAdmin):
 
 @admin.register(InboxMessage)
 class InboxMessageAdmin(admin.ModelAdmin):
-    list_display = ["id", "state", "state_changed", "message_type", "message_actor"]
+    list_display = [
+        "id",
+        "state",
+        "state_changed",
+        "message_type_full",
+        "message_actor",
+    ]
     list_filter = ("state",)
     search_fields = ["message"]
     actions = ["reset_state"]
@@ -107,3 +114,8 @@ class InboxMessageAdmin(admin.ModelAdmin):
 @admin.register(Invite)
 class InviteAdmin(admin.ModelAdmin):
     list_display = ["id", "created", "token", "note"]
+
+
+@admin.register(Report)
+class ReportAdmin(admin.ModelAdmin):
+    list_display = ["id", "created", "resolved", "type", "subject_identity"]

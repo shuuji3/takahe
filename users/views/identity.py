@@ -16,6 +16,7 @@ from core.ld import canonicalise
 from core.models import Config
 from users.decorators import identity_required
 from users.models import Domain, Follow, FollowStates, Identity, IdentityStates
+from users.services import IdentityService
 from users.shortcuts import by_handle_or_404
 
 
@@ -62,9 +63,8 @@ class ViewIdentity(ListView):
 
     def get_queryset(self):
         return (
-            self.identity.posts.filter(
-                visibility__in=[Post.Visibilities.public, Post.Visibilities.unlisted],
-            )
+            self.identity.posts.not_hidden()
+            .unlisted(include_replies=True)
             .select_related("author")
             .prefetch_related("attachments")
             .order_by("-created")
@@ -79,6 +79,13 @@ class ViewIdentity(ListView):
             context["page_obj"],
             self.request.identity,
         )
+        if self.identity.config_identity.visible_follows:
+            context["followers_count"] = self.identity.inbound_follows.filter(
+                state__in=FollowStates.group_active()
+            ).count()
+            context["following_count"] = self.identity.outbound_follows.filter(
+                state__in=FollowStates.group_active()
+            ).count()
         if self.request.identity:
             follow = Follow.maybe_get(self.request.identity, self.identity)
             if follow and follow.state in FollowStates.group_active():
@@ -140,18 +147,9 @@ class ActionIdentity(View):
         # See what action we should perform
         action = self.request.POST["action"]
         if action == "follow":
-            existing_follow = Follow.maybe_get(self.request.identity, identity)
-            if not existing_follow:
-                Follow.create_local(self.request.identity, identity)
-            elif existing_follow.state in [
-                FollowStates.undone,
-                FollowStates.undone_remotely,
-            ]:
-                existing_follow.transition_perform(FollowStates.unrequested)
+            IdentityService(identity).follow_from(self.request.identity)
         elif action == "unfollow":
-            existing_follow = Follow.maybe_get(self.request.identity, identity)
-            if existing_follow:
-                existing_follow.transition_perform(FollowStates.undone)
+            IdentityService(identity).unfollow_from(self.request.identity)
         else:
             raise ValueError(f"Cannot handle identity action {action}")
         return redirect(identity.urls.view)

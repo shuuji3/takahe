@@ -1,3 +1,4 @@
+import httpx
 from asgiref.sync import sync_to_async
 from django.db import models
 
@@ -7,10 +8,12 @@ from stator.models import State, StateField, StateGraph, StatorModel
 
 
 class FanOutStates(StateGraph):
-    new = State(try_interval=300)
+    new = State(try_interval=600)
     sent = State()
+    failed = State()
 
     new.transitions_to(sent)
+    new.times_out_to(failed, seconds=86400 * 3)
 
     @classmethod
     async def handle_new(cls, instance: "FanOut"):
@@ -19,6 +22,10 @@ class FanOutStates(StateGraph):
         """
 
         fan_out = await instance.afetch_full()
+
+        # Don't try to fan out to identities that are not fetched yet
+        if not (fan_out.identity.local or fan_out.identity.inbox_uri):
+            return
 
         match (fan_out.type, fan_out.identity.local):
             # Handle creating/updating local posts
@@ -42,7 +49,10 @@ class FanOutStates(StateGraph):
                         post=post,
                     )
                 # We might have been mentioned
-                if fan_out.identity.id in mentioned:
+                if (
+                    fan_out.identity.id in mentioned
+                    and fan_out.identity_id != post.author_id
+                ):
                     await sync_to_async(TimelineEvent.add_mentioned)(
                         identity=fan_out.identity,
                         post=post,
@@ -52,21 +62,27 @@ class FanOutStates(StateGraph):
             case (FanOut.Types.post, False):
                 post = await fan_out.subject_post.afetch_full()
                 # Sign it and send it
-                await post.author.signed_request(
-                    method="post",
-                    uri=fan_out.identity.inbox_uri,
-                    body=canonicalise(post.to_create_ap()),
-                )
+                try:
+                    await post.author.signed_request(
+                        method="post",
+                        uri=fan_out.identity.inbox_uri,
+                        body=canonicalise(post.to_create_ap()),
+                    )
+                except httpx.RequestError:
+                    return
 
             # Handle sending remote posts update
             case (FanOut.Types.post_edited, False):
                 post = await fan_out.subject_post.afetch_full()
                 # Sign it and send it
-                await post.author.signed_request(
-                    method="post",
-                    uri=fan_out.identity.inbox_uri,
-                    body=canonicalise(post.to_update_ap()),
-                )
+                try:
+                    await post.author.signed_request(
+                        method="post",
+                        uri=fan_out.identity.inbox_uri,
+                        body=canonicalise(post.to_update_ap()),
+                    )
+                except httpx.RequestError:
+                    return
 
             # Handle deleting local posts
             case (FanOut.Types.post_deleted, True):
@@ -82,11 +98,14 @@ class FanOutStates(StateGraph):
             case (FanOut.Types.post_deleted, False):
                 post = await fan_out.subject_post.afetch_full()
                 # Send it to the remote inbox
-                await post.author.signed_request(
-                    method="post",
-                    uri=fan_out.identity.inbox_uri,
-                    body=canonicalise(post.to_delete_ap()),
-                )
+                try:
+                    await post.author.signed_request(
+                        method="post",
+                        uri=fan_out.identity.inbox_uri,
+                        body=canonicalise(post.to_delete_ap()),
+                    )
+                except httpx.RequestError:
+                    return
 
             # Handle local boosts/likes
             case (FanOut.Types.interaction, True):
@@ -101,11 +120,14 @@ class FanOutStates(StateGraph):
             case (FanOut.Types.interaction, False):
                 interaction = await fan_out.subject_post_interaction.afetch_full()
                 # Send it to the remote inbox
-                await interaction.identity.signed_request(
-                    method="post",
-                    uri=fan_out.identity.inbox_uri,
-                    body=canonicalise(interaction.to_ap()),
-                )
+                try:
+                    await interaction.identity.signed_request(
+                        method="post",
+                        uri=fan_out.identity.inbox_uri,
+                        body=canonicalise(interaction.to_ap()),
+                    )
+                except httpx.RequestError:
+                    return
 
             # Handle undoing local boosts/likes
             case (FanOut.Types.undo_interaction, True):  # noqa:F841
@@ -121,11 +143,14 @@ class FanOutStates(StateGraph):
             case (FanOut.Types.undo_interaction, False):  # noqa:F841
                 interaction = await fan_out.subject_post_interaction.afetch_full()
                 # Send an undo to the remote inbox
-                await interaction.identity.signed_request(
-                    method="post",
-                    uri=fan_out.identity.inbox_uri,
-                    body=canonicalise(interaction.to_undo_ap()),
-                )
+                try:
+                    await interaction.identity.signed_request(
+                        method="post",
+                        uri=fan_out.identity.inbox_uri,
+                        body=canonicalise(interaction.to_undo_ap()),
+                    )
+                except httpx.RequestError:
+                    return
 
             case _:
                 raise ValueError(
@@ -184,8 +209,14 @@ class FanOut(StatorModel):
         """
         Returns a version of the object with all relations pre-loaded
         """
-        return await FanOut.objects.select_related(
-            "identity",
-            "subject_post",
-            "subject_post_interaction",
-        ).aget(pk=self.pk)
+        return (
+            await FanOut.objects.select_related(
+                "identity",
+                "subject_post",
+                "subject_post_interaction",
+            )
+            .prefetch_related(
+                "subject_post__emojis",
+            )
+            .aget(pk=self.pk)
+        )

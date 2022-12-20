@@ -1,4 +1,7 @@
 from django.db import models
+from django.utils import timezone
+
+from core.ld import format_ld_date
 
 
 class TimelineEvent(models.Model):
@@ -14,6 +17,7 @@ class TimelineEvent(models.Model):
         liked = "liked"  # Someone liking one of our posts
         followed = "followed"
         boosted = "boosted"  # Someone boosting one of our posts
+        announcement = "announcement"  # Server announcement
 
     # The user this event is for
     identity = models.ForeignKey(
@@ -48,6 +52,9 @@ class TimelineEvent(models.Model):
         related_name="timeline_events_about_us",
     )
 
+    published = models.DateTimeField(default=timezone.now)
+    seen = models.BooleanField(default=False)
+
     created = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -79,6 +86,7 @@ class TimelineEvent(models.Model):
             identity=identity,
             type=cls.Types.post,
             subject_post=post,
+            defaults={"published": post.published or post.created},
         )[0]
 
     @classmethod
@@ -91,6 +99,7 @@ class TimelineEvent(models.Model):
             type=cls.Types.mentioned,
             subject_post=post,
             subject_identity=post.author,
+            defaults={"published": post.published or post.created},
         )[0]
 
     @classmethod
@@ -143,3 +152,32 @@ class TimelineEvent(models.Model):
                 subject_post_id=interaction.post_id,
                 subject_identity_id=interaction.identity_id,
             ).delete()
+
+    ### Mastodon Client API ###
+
+    def to_mastodon_notification_json(self, interactions=None):
+        result = {
+            "id": self.pk,
+            "created_at": format_ld_date(self.created),
+            "account": self.subject_identity.to_mastodon_json(),
+        }
+        if self.type == self.Types.liked:
+            result["type"] = "favourite"
+            result["status"] = self.subject_post.to_mastodon_json(
+                interactions=interactions
+            )
+        elif self.type == self.Types.boosted:
+            result["type"] = "reblog"
+            result["status"] = self.subject_post.to_mastodon_json(
+                interactions=interactions
+            )
+        elif self.type == self.Types.mentioned:
+            result["type"] = "mention"
+            result["status"] = self.subject_post.to_mastodon_json(
+                interactions=interactions
+            )
+        elif self.type == self.Types.followed:
+            result["type"] = "follow"
+        else:
+            raise ValueError(f"Cannot convert {self.type} to notification JSON")
+        return result

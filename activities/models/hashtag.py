@@ -5,7 +5,6 @@ import urlman
 from asgiref.sync import sync_to_async
 from django.db import models
 from django.utils import timezone
-from django.utils.safestring import mark_safe
 
 from core.html import strip_html
 from core.models import Config
@@ -116,10 +115,8 @@ class Hashtag(StatorModel):
     objects = HashtagManager()
 
     class urls(urlman.Urls):
-        root = "/admin/hashtags/"
-        create = "/admin/hashtags/create/"
-        edit = "/admin/hashtags/{self.hashtag}/"
-        delete = "{edit}delete/"
+        admin = "/admin/hashtags/"
+        admin_edit = "{admin}{self.hashtag}/"
         timeline = "/tags/{self.hashtag}/"
 
     hashtag_regex = re.compile(r"\B#([a-zA-Z0-9(_)]+\b)(?!;)")
@@ -178,10 +175,9 @@ class Hashtag(StatorModel):
         hashtags = sorted({tag.lower() for tag in hashtag_hits})
         return list(hashtags)
 
-    @classmethod
-    def linkify_hashtags(cls, content) -> str:
-        def replacer(match):
-            hashtag = match.group(1)
-            return f'<a class="hashtag" href="/tags/{hashtag.lower()}/">#{hashtag}</a>'
-
-        return mark_safe(Hashtag.hashtag_regex.sub(replacer, content))
+    def to_mastodon_json(self):
+        return {
+            "name": self.hashtag,
+            "url": self.urls.view.full(),
+            "history": [],
+        }

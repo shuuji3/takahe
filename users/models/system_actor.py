@@ -43,12 +43,14 @@ class SystemActor:
             "id": self.actor_uri,
             "type": "Application",
             "inbox": self.actor_uri + "inbox/",
+            "outbox": self.actor_uri + "outbox/",
             "endpoints": {
                 "sharedInbox": f"https://{settings.MAIN_DOMAIN}/inbox/",
             },
             "preferredUsername": self.username,
             "url": self.profile_uri,
-            "as:manuallyApprovesFollowers": True,
+            "manuallyApprovesFollowers": True,
+            "toot:discoverable": False,
             "publicKey": {
                 "id": self.public_key_id,
                 "owner": self.actor_uri,

@@ -2,7 +2,7 @@ import json
 
 from asgiref.sync import async_to_sync
 from django.conf import settings
-from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
+from django.http import Http404, HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from django.views.generic import View
@@ -165,11 +165,12 @@ class Inbox(View):
                 f"Inbox error: cannot fetch actor {document['actor']}"
             )
             return HttpResponseBadRequest("Cannot retrieve actor")
-        # See if it's from a blocked domain
-        if identity.domain.blocked:
+
+        # See if it's from a blocked user or domain
+        if identity.blocked or identity.domain.blocked:
             # I love to lie! Throw it away!
             exceptions.capture_message(
-                f"Inbox: Discarded message from {identity.domain}"
+                f"Inbox: Discarded message from {identity.actor_uri}"
             )
             return HttpResponse(status=202)
 
@@ -185,6 +186,7 @@ class Inbox(View):
             except VerificationError:
                 exceptions.capture_message("Inbox error: Bad LD signature")
                 return HttpResponseUnauthorized("Bad signature")
+
         # Otherwise, verify against the header (assuming it's the same actor)
         else:
             try:
@@ -200,9 +202,57 @@ class Inbox(View):
             except VerificationError:
                 exceptions.capture_message("Inbox error: Bad HTTP signature")
                 return HttpResponseUnauthorized("Bad signature")
+
         # Hand off the item to be processed by the queue
         InboxMessage.objects.create(message=document)
         return HttpResponse(status=202)
+
+
+class Outbox(View):
+    """
+    The ActivityPub outbox for an identity
+    """
+
+    def get(self, request, handle):
+        self.identity = by_handle_or_404(
+            self.request,
+            handle,
+            local=False,
+            fetch=True,
+        )
+        # If this not a local actor, 404
+        if not self.identity.local:
+            raise Http404("Not a local identity")
+        # Return an ordered collection with the most recent 10 public posts
+        posts = list(self.identity.posts.not_hidden().public()[:10])
+        return JsonResponse(
+            canonicalise(
+                {
+                    "type": "OrderedCollection",
+                    "totalItems": len(posts),
+                    "orderedItems": [post.to_ap() for post in posts],
+                }
+            ),
+            content_type="application/activity+json",
+        )
+
+
+class EmptyOutbox(View):
+    """
+    A fixed-empty outbox for the system actor
+    """
+
+    def get(self, request, *args, **kwargs):
+        return JsonResponse(
+            canonicalise(
+                {
+                    "type": "OrderedCollection",
+                    "totalItems": 0,
+                    "orderedItems": [],
+                }
+            ),
+            content_type="application/activity+json",
+        )
 
 
 @method_decorator(cache_page(), name="dispatch")
@@ -216,5 +266,6 @@ class SystemActorView(View):
             canonicalise(
                 SystemActor().to_ap(),
                 include_security=True,
-            )
+            ),
+            content_type="application/activity+json",
         )

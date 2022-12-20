@@ -5,10 +5,10 @@ import pydantic
 from asgiref.sync import sync_to_async
 from django.core.files import File
 from django.db import models
-from django.templatetags.static import static
 from django.utils.functional import lazy
 
 from core.uploads import upload_namer
+from core.uris import StaticAbsoluteUrl
 from takahe import __version__
 
 
@@ -201,8 +201,10 @@ class Config(models.Model):
         site_name: str = "Takahē"
         highlight_color: str = "#449c8c"
         site_about: str = "<h2>Welcome!</h2>\n\nThis is a community running Takahē."
-        site_icon: UploadedImage = static("img/icon-128.png")
-        site_banner: UploadedImage = static("img/fjords-banner-600.jpg")
+        site_icon: UploadedImage = StaticAbsoluteUrl("img/icon-128.png").relative  # type: ignore
+        site_banner: UploadedImage = StaticAbsoluteUrl(
+            "img/fjords-banner-600.jpg"
+        ).relative  # type: ignore
 
         policy_terms: str = ""
         policy_privacy: str = ""
@@ -214,6 +216,7 @@ class Config(models.Model):
         content_warning_text: str = "Content Warning"
 
         post_length: int = 500
+        post_minimum_interval: int = 3  # seconds
         identity_min_length: int = 2
         identity_max_per_user: int = 5
         identity_max_age: int = 24 * 60 * 60
@@ -221,6 +224,8 @@ class Config(models.Model):
 
         hashtag_unreviewed_are_public: bool = True
         hashtag_stats_max_age: int = 60 * 60
+
+        emoji_unreviewed_are_public: bool = True
 
         cache_timeout_page_default: int = 60
         cache_timeout_page_timeline: int = 60 * 3
@@ -237,3 +242,4 @@ class Config(models.Model):
 
         toot_mode: bool = False
         default_post_visibility: int = 0  # Post.Visibilities.public
+        visible_follows: bool = True

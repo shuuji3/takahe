@@ -1,5 +1,6 @@
 from typing import Optional
 
+import httpx
 from django.db import models, transaction
 
 from core.ld import canonicalise
@@ -8,15 +9,17 @@ from users.models.identity import Identity
 
 
 class FollowStates(StateGraph):
-    unrequested = State(try_interval=300)
+    unrequested = State(try_interval=600)
     local_requested = State(try_interval=24 * 60 * 60)
     remote_requested = State(try_interval=24 * 60 * 60)
     accepted = State(externally_progressed=True)
     undone = State(try_interval=60 * 60)
     undone_remotely = State()
+    failed = State()
 
     unrequested.transitions_to(local_requested)
     unrequested.transitions_to(remote_requested)
+    unrequested.times_out_to(failed, seconds=86400 * 7)
     local_requested.transitions_to(accepted)
     remote_requested.transitions_to(accepted)
     accepted.transitions_to(undone)
@@ -36,12 +39,20 @@ class FollowStates(StateGraph):
         # Remote follows should not be here
         if not follow.source.local:
             return cls.remote_requested
+        if follow.target.local:
+            return cls.accepted
+        # Don't try if the other identity didn't fetch yet
+        if not follow.target.inbox_uri:
+            return
         # Sign it and send it
-        await follow.source.signed_request(
-            method="post",
-            uri=follow.target.inbox_uri,
-            body=canonicalise(follow.to_ap()),
-        )
+        try:
+            await follow.source.signed_request(
+                method="post",
+                uri=follow.target.inbox_uri,
+                body=canonicalise(follow.to_ap()),
+            )
+        except httpx.RequestError:
+            return
         return cls.local_requested
 
     @classmethod
@@ -56,11 +67,14 @@ class FollowStates(StateGraph):
         source server.
         """
         follow = await instance.afetch_full()
-        await follow.target.signed_request(
-            method="post",
-            uri=follow.source.inbox_uri,
-            body=canonicalise(follow.to_accept_ap()),
-        )
+        try:
+            await follow.target.signed_request(
+                method="post",
+                uri=follow.source.inbox_uri,
+                body=canonicalise(follow.to_accept_ap()),
+            )
+        except httpx.RequestError:
+            return
         return cls.accepted
 
     @classmethod
@@ -69,11 +83,14 @@ class FollowStates(StateGraph):
         Delivers the Undo object to the target server
         """
         follow = await instance.afetch_full()
-        await follow.source.signed_request(
-            method="post",
-            uri=follow.target.inbox_uri,
-            body=canonicalise(follow.to_undo_ap()),
-        )
+        try:
+            await follow.source.signed_request(
+                method="post",
+                uri=follow.target.inbox_uri,
+                body=canonicalise(follow.to_undo_ap()),
+            )
+        except httpx.RequestError:
+            return
         return cls.undone_remotely
 
 

@@ -45,6 +45,10 @@ You'll need to run two copies of our `Docker image <https://hub.docker.com/r/joi
 
 * One with the arguments ``python3 manage.py runstator``, which will run the background worker
 
+These containers will need the ability to write at least 1GB of files out
+to their scratch disks. See the ``TAKAHE_NGINX_CACHE_SIZE`` environment
+variable for more.
+
 .. note::
 
     If you cannot run a background worker for some reason, you can instead
@@ -59,7 +63,9 @@ project, so if you know what you're doing, go for it - but we won't be able
 to give you support.
 
 If you are running on Kubernetes, we recommend that you make one Deployment
-for the webserver and one Deployment for the background worker.
+for the webserver and one Deployment for the background worker. We also
+recommend that you mount an ``emptyDir`` to the ``/cache/`` path on the
+webserver containers, as this is where the media cache will be stored.
 
 
 Environment Variables
@@ -73,6 +79,14 @@ be provided to the containers from the first boot.
 
 * ``TAKAHE_SECRET_KEY`` must be a fixed, random value (it's used for internal
   cryptography). Don't change this unless you want to invalidate all sessions.
+
+  .. warning::
+
+    You **must** keep the value of ``TAKAHE_SECRET_KEY`` unique and secret. Anyone
+    with this value can modify their session to impersonate any user, including
+    admins. It should be kept even more secure than your admin passwords, and
+    should be long, random and completely unguessable. We recommend that it is
+    at least 64 characters.
 
 * ``TAKAHE_MEDIA_BACKEND`` must be a URI starting with ``local://``, ``s3://``
   or ``gcs://``. See :ref:`media_configuration` below for more.
@@ -104,6 +118,9 @@ be provided to the containers from the first boot.
   ``TAKAHE_ERROR_EMAILS`` to a valid JSON list of emails, such as
   ``["andrew@aeracode.org"]`` (if you're doing this via shell, be careful
   about escaping!)
+
+There are some other, optional variables you can tweak once the
+system is up and working - see :doc:`tuning` for more.
 
 
 .. _media_configuration:
@@ -142,21 +159,13 @@ Google Cloud Storage
 
 To use GCS, provide a URL like:
 
-* ``gcs://bucket-name``
+* ``gs:///bucket-name``
 
 The GCS backend currently only supports implicit authentication (from the
 standard Google authentication environment variables, or machine roles).
 
-Note that the bucket name only has two slashes before it - we will move this to
-be three soon, like the S3 backend, but will notify you in release notes when
-this changes and will allow the existing pattern to work for a while.
-
 Your bucket must be set to world-readable and have individual object
 permissions disabled.
-
-  * If it is set to ``s3://``, it must be in the form
-    ``s3://access-key:secret-key@endpoint-url/bucket-name``. Your bucket must
-    permit publically-readable files to be uploaded.
 
 
 Local Directory

@@ -16,7 +16,7 @@ class InboxMessageStates(StateGraph):
     @classmethod
     async def handle_received(cls, instance: "InboxMessage"):
         from activities.models import Post, PostInteraction
-        from users.models import Follow, Identity
+        from users.models import Follow, Identity, Report
 
         match instance.message_type:
             case "follow":
@@ -29,20 +29,38 @@ class InboxMessageStates(StateGraph):
                 match instance.message_object_type:
                     case "note":
                         await sync_to_async(Post.handle_create_ap)(instance.message)
+                    case "question":
+                        pass  # Drop for now
                     case unknown:
-                        raise ValueError(
-                            f"Cannot handle activity of type create.{unknown}"
-                        )
+                        if unknown in Post.Types.names:
+                            await sync_to_async(Post.handle_create_ap)(instance.message)
+                        else:
+                            raise ValueError(
+                                f"Cannot handle activity of type create.{unknown}"
+                            )
             case "update":
                 match instance.message_object_type:
                     case "note":
                         await sync_to_async(Post.handle_update_ap)(instance.message)
                     case "person":
                         await sync_to_async(Identity.handle_update_ap)(instance.message)
+                    case "service":
+                        await sync_to_async(Identity.handle_update_ap)(instance.message)
+                    case "group":
+                        await sync_to_async(Identity.handle_update_ap)(instance.message)
+                    case "organization":
+                        await sync_to_async(Identity.handle_update_ap)(instance.message)
+                    case "application":
+                        await sync_to_async(Identity.handle_update_ap)(instance.message)
+                    case "question":
+                        pass  # Drop for now
                     case unknown:
-                        raise ValueError(
-                            f"Cannot handle activity of type update.{unknown}"
-                        )
+                        if unknown in Post.Types.names:
+                            await sync_to_async(Post.handle_update_ap)(instance.message)
+                        else:
+                            raise ValueError(
+                                f"Cannot handle activity of type update.{unknown}"
+                            )
             case "accept":
                 match instance.message_object_type:
                     case "follow":
@@ -75,6 +93,8 @@ class InboxMessageStates(StateGraph):
                     match instance.message_object_type:
                         case "tombstone":
                             await sync_to_async(Post.handle_delete_ap)(instance.message)
+                        case "note":
+                            await sync_to_async(Post.handle_delete_ap)(instance.message)
                         case unknown:
                             raise ValueError(
                                 f"Cannot handle activity of type delete.{unknown}"
@@ -85,6 +105,9 @@ class InboxMessageStates(StateGraph):
             case "remove":
                 # We are ignoring these right now (probably pinned items)
                 pass
+            case "flag":
+                # Received reports
+                await sync_to_async(Report.handle_ap)(instance.message)
             case unknown:
                 raise ValueError(f"Cannot handle activity of type {unknown}")
         return cls.processed
@@ -112,8 +135,18 @@ class InboxMessage(StatorModel):
         return self.message["type"].lower()
 
     @property
-    def message_object_type(self):
-        return self.message["object"]["type"].lower()
+    def message_object_type(self) -> str | None:
+        if isinstance(self.message["object"], dict):
+            return self.message["object"]["type"].lower()
+        else:
+            return None
+
+    @property
+    def message_type_full(self):
+        if isinstance(self.message.get("object"), dict):
+            return f"{self.message_type}.{self.message_object_type}"
+        else:
+            return f"{self.message_type}"
 
     @property
     def message_actor(self):

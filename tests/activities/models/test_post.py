@@ -10,6 +10,16 @@ def test_fetch_post(httpx_mock: HTTPXMock, config_system):
     Tests that a post we don't have locally can be fetched by by_object_uri
     """
     httpx_mock.add_response(
+        url="https://example.com/test-actor",
+        json={
+            "@context": [
+                "https://www.w3.org/ns/activitystreams",
+            ],
+            "id": "https://example.com/test-actor",
+            "type": "Person",
+        },
+    )
+    httpx_mock.add_response(
         url="https://example.com/test-post",
         json={
             "@context": [
@@ -100,7 +110,9 @@ def test_linkify_mentions_remote(
 
 
 @pytest.mark.django_db
-def test_linkify_mentions_local(identity, identity2, remote_identity):
+def test_linkify_mentions_local(
+    config_system, emoji_locals, identity, identity2, remote_identity
+):
     """
     Tests that we can linkify post mentions properly for local use
     """

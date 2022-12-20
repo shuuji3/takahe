@@ -84,9 +84,11 @@ class HttpSignature:
         headers = {}
         for header_name in header_names:
             if header_name == "(request-target)":
-                value = f"post {request.path}"
+                value = f"{request.method.lower()} {request.path}"
             elif header_name == "content-type":
                 value = request.META["CONTENT_TYPE"]
+            elif header_name == "content-length":
+                value = request.META["CONTENT_LENGTH"]
             else:
                 value = request.META["HTTP_%s" % header_name.upper().replace("-", "_")]
             headers[header_name] = value
@@ -198,7 +200,9 @@ class HttpSignature:
             body_bytes = b""
         # GET requests get implicit accept headers added
         if method == "get":
-            headers["Accept"] = "application/activity+json, application/ld+json"
+            headers[
+                "Accept"
+            ] = 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"'
         # Sign the headers
         signed_string = "\n".join(
             f"{name.lower()}: {value}" for name, value in headers.items()
@@ -234,7 +238,12 @@ class HttpSignature:
                 content=body_bytes,
                 follow_redirects=method == "get",
             )
-            if method == "post" and response.status_code >= 400:
+            if (
+                method == "post"
+                and response.status_code >= 400
+                and response.status_code < 500
+                and response.status_code != 404
+            ):
                 raise ValueError(
                     f"POST error: {response.status_code} {response.content}"
                 )

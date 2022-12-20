@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block title %}Debug JSON{% endblock %}
+
+{% block body_class %}no-sidebar{% endblock %}
+
+{% block content %}
+    <form action="." method="POST">
+        {% csrf_token %}
+        <fieldset>
+            {% include "forms/_field.html" with field=form.uri %}
+        </fieldset>
+        <div class="buttons">
+            <button>Debug</button>
+        </div>
+    </form>
+    {% if result %}
+
+        <p>Canonacalized Response: (view source for raw)</p>
+        <div id="raw-json-result" style="display: none;">
+{{ raw_result|escape }}
+        </div>
+        <pre>{{ result }}</pre>
+    {% endif %}
+{% endblock %}
