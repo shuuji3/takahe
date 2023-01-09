@@ -1,22 +1,28 @@
 {% extends "settings/base.html" %}
-
 {% block subtitle %}Stator{% endblock %}
-
 {% block content %}
     {% for model, stats in model_stats.items %}
         <fieldset>
-            <legend>{{ model }}</legend>
+            <legend>
+                {{ model }}
+            </legend>
             <table class="metadata">
                 <tr>
-                    <th>Pending</td>
+                    <th>
+                        Pending
+                    </td>
                     <td>{{ stats.most_recent_queued }}</td>
                 </tr>
                 <tr>
-                    <th>Processed today</td>
+                    <th>
+                        Processed today
+                    </td>
                     <td>{{ stats.most_recent_handled.1 }}</td>
                 </tr>
                 <tr>
-                    <th>This month</td>
+                    <th>
+                        This month
+                    </td>
                     <td>{{ stats.most_recent_handled.2 }}</td>
                 </tr>
             </table>

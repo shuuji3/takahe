@@ -1,7 +1,5 @@
 {% extends "base.html" %}
-
 {% block title %}Delete Post{% endblock %}
-
 {% block content %}
     <h1>Delete this post?</h1>
     {% include "activities/_mini_post.html" %}
@@ -10,5 +8,4 @@
         <button onclick="history.back()" autofocus>Cancel</button>
         <button class="delete">Delete</button>
     </form>
-
 {% endblock %}

@@ -1,7 +1,5 @@
 {% extends "base_plain.html" %}
-
 {% block title %}Authorize {{ application.name }}{% endblock %}
-
 {% block content %}
     {% if not identities %}
         <p>
@@ -13,18 +11,24 @@
         <form method="POST">
             {% csrf_token %}
             <fieldset>
-                <legend>Authorize</legend>
+                <legend>
+                    Authorize
+                </legend>
                 <div class="field">
                     <div class="label-input">
                         <label for="identity">Select Identity</label>
                         <select name="identity" id="identity">
                             {% for identity in identities %}
-                                <option value="{{ identity.pk }}">{{ identity.handle }}</option>
+                                <option value="{{ identity.pk }}">
+                                    {{ identity.handle }}
+                                </option>
                             {% endfor %}
                         </select>
                     </div>
                 </div>
-                <p>Do you want to give <b>{{ application.name }}</b> access to this identity?</p>
+                <p>
+                    Do you want to give <b>{{ application.name }}</b> access to this identity?
+                </p>
                 <p>It will have permission to:</p>
                 <ul>
                     {% if "read" in scope %}<li>Read all of your data</li>{% endif %}

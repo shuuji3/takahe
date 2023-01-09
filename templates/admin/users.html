@@ -1,11 +1,14 @@
 {% extends "settings/base.html" %}
-
 {% block subtitle %}Users{% endblock %}
-
 {% block content %}
     <form action="." class="search">
-        <input type="search" name="query" value="{{ query }}" placeholder="Search by email">
-        <button><i class="fa-solid fa-search"></i></button>
+        <input type="search"
+               name="query"
+               value="{{ query }}"
+               placeholder="Search by email">
+        <button>
+            <i class="fa-solid fa-search"></i>
+        </button>
     </form>
     <section class="icon-menu">
         {% for user in page_obj %}
@@ -13,13 +16,9 @@
                 <i class="fa-solid fa-user"></i>
                 <span class="handle">
                     {{ user.email }}
-                    <small>
-                        {{ user.num_identities }} identit{{ user.num_identities|pluralize:"y,ies" }}
-                    </small>
+                    <small>{{ user.num_identities }} identit{{ user.num_identities|pluralize:"y,ies" }}</small>
                 </span>
-                {% if user.banned %}
-                    <span class="pill bad">Banned</span>
-                {% endif %}
+                {% if user.banned %}<span class="pill bad">Banned</span>{% endif %}
             </a>
         {% empty %}
             <p class="option empty">
@@ -35,11 +34,9 @@
                 <a class="button" href=".?page={{ page_obj.previous_page_number }}">Previous Page</a>
             {% endif %}
             {% if page_obj.paginator.count %}
-                <span class="count">{{ page_obj.paginator.count }} user{{page_obj.paginator.count|pluralize }}</span>
+                <span class="count">{{ page_obj.paginator.count }} user{{ page_obj.paginator.count|pluralize }}</span>
             {% endif %}
-            {% if page_obj.has_next %}
-                <a class="button" href=".?page={{ page_obj.next_page_number }}">Next Page</a>
-            {% endif %}
+            {% if page_obj.has_next %}<a class="button" href=".?page={{ page_obj.next_page_number }}">Next Page</a>{% endif %}
         </div>
     </section>
 {% endblock %}

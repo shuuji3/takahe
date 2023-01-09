@@ -1,12 +1,12 @@
 {% extends "base.html" %}
-
 {% block title %}Report Sent{% endblock %}
-
 {% block content %}
     <form action="." method="POST">
         {% csrf_token %}
         <fieldset>
-            <legend>Report</legend>
+            <legend>
+                Report
+            </legend>
             <p>Your report has been sent.</p>
         </fieldset>
     </form>

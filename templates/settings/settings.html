@@ -1,13 +1,13 @@
 {% extends "settings/base.html" %}
-
 {% block subtitle %}{{ section.title }}{% endblock %}
-
 {% block content %}
     <form action="." method="POST" enctype="multipart/form-data">
         {% csrf_token %}
         {% for title, fields in fieldsets.items %}
             <fieldset>
-                <legend>{{ title }}</legend>
+                <legend>
+                    {{ title }}
+                </legend>
                 {% for field in fields %}
                     {% include "forms/_field.html" %}
                 {% endfor %}

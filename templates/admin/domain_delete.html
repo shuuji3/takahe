@@ -1,13 +1,9 @@
 {% extends "settings/base.html" %}
-
 {% block title %}Delete {{ domain.domain }} - Admin{% endblock %}
-
 {% block content %}
     <form action="." method="POST">
         {% csrf_token %}
-
         <h1>Deleting {{ domain.domain }}</h1>
-
         {% if num_identities %}
             <p>
                 You cannot delete this domain as it has <b>{{ num_identities }}
@@ -24,5 +20,4 @@
                 <button class="delete">Confirm Deletion</button>
             </div>
         {% endif %}
-
-{% endblock %}
+    {% endblock %}

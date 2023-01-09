@@ -1,7 +1,5 @@
 {% extends "settings/base.html" %}
-
 {% block title %}Add Domain - Admin{% endblock %}
-
 {% block content %}
     <form action="." method="POST">
         <h1>Add A Domain</h1>
@@ -26,12 +24,16 @@
         </p>
         {% csrf_token %}
         <fieldset>
-            <legend>Domain Details</legend>
+            <legend>
+                Domain Details
+            </legend>
             {% include "forms/_field.html" with field=form.domain %}
             {% include "forms/_field.html" with field=form.service_domain %}
         </fieldset>
         <fieldset>
-            <legend>Access Control</legend>
+            <legend>
+                Access Control
+            </legend>
             {% include "forms/_field.html" with field=form.public %}
             {% include "forms/_field.html" with field=form.default %}
         </fieldset>

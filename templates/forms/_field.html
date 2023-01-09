@@ -4,20 +4,18 @@
             {{ field.label }}
             {% if field.field.required %}<small>(Required)</small>{% endif %}
         </label>
-        {% if field.help_text %}
-            <p class="help">
-                {{ field.help_text|safe|linebreaksbr }}
-            </p>
-        {% endif %}
+        {% if field.help_text %}<p class="help">{{ field.help_text|safe|linebreaksbr }}</p>{% endif %}
         {{ field.errors }}
         {% if field.field.widget.input_type == "file" and field.value %}
-        <div class="clear">
-            <input type="checkbox" class="clear" name="{{ field.name }}__clear"> Clear current value</input>
+            <div class="clear">
+                <input type="checkbox" class="clear" name="{{ field.name }}__clear">
+                Clear current value
+            </input>
         </div>
-        {% endif %}
-        {{ field }}
-    </div>
-    {% if field.field.widget.input_type == "file" and field.value %}
-        <img class="preview" src="{{ field.value }}">
     {% endif %}
+    {{ field }}
+</div>
+{% if field.field.widget.input_type == "file" and field.value %}
+    <img class="preview" src="{{ field.value }}">
+{% endif %}
 </div>

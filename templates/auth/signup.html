@@ -1,13 +1,13 @@
 {% extends "base_plain.html" %}
-
 {% block title %}Create Account{% endblock %}
-
 {% block content %}
     <form action="." method="POST">
         {% if form %}
             {% csrf_token %}
             <fieldset>
-                <legend>Create An Account</legend>
+                <legend>
+                    Create An Account
+                </legend>
                 {% if signup_text %}{{ signup_text }}{% endif %}
                 {% for field in form %}
                     {% include "forms/_field.html" %}
@@ -18,7 +18,9 @@
             </div>
         {% else %}
             <fieldset>
-                <legend>Create An Account</legend>
+                <legend>
+                    Create An Account
+                </legend>
                 {% if signup_text %}
                     {{ signup_text }}
                 {% else %}

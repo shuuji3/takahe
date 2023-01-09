@@ -1,7 +1,5 @@
 {% extends "settings/base.html" %}
-
 {% block subtitle %}Domains{% endblock %}
-
 {% block content %}
     <section class="icon-menu">
         {% for domain in domains %}
@@ -10,13 +8,15 @@
                 <span class="handle">
                     {{ domain.domain }}
                     <small>
-                        {% if domain.public %}Public{% else %}Private{% endif %}
+                        {% if domain.public %}
+                            Public
+                        {% else %}
+                            Private
+                        {% endif %}
                         {% if domain.service_domain %}({{ domain.service_domain }}){% endif %}
                     </small>
                 </span>
-                {% if domain.default %}
-                    <span class="pill">Default</span>
-                {% endif %}
+                {% if domain.default %}<span class="pill">Default</span>{% endif %}
             </a>
         {% empty %}
             <p class="option empty">You have no domains set up.</p>

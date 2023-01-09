@@ -1,17 +1,13 @@
 {% extends "base.html" %}
 {% load activity_tags %}
-
 {% block title %}Home{% endblock %}
-
 {% block content %}
     {% for event in page_obj %}
         {% if event.type == "post" %}
             {% include "activities/_post.html" with post=event.subject_post %}
         {% elif event.type == "boost" %}
             <div class="boost-banner">
-                <a href="{{ event.subject_identity.urls.view }}">
-                    {{ event.subject_identity.html_name_or_handle }}
-                </a> boosted
+                <a href="{{ event.subject_identity.urls.view }}">{{ event.subject_identity.html_name_or_handle }}</a> boosted
                 <time>
                     {{ event.subject_post_interaction.published | timedeltashort }} ago
                 </time>
@@ -21,14 +17,18 @@
     {% empty %}
         Nothing to show yet.
     {% endfor %}
-
     <div class="pagination">
         {% if page_obj.has_previous and not request.htmx %}
             <a class="button" href=".?page={{ page_obj.previous_page_number }}">Previous Page</a>
         {% endif %}
-
         {% if page_obj.has_next %}
-            <a class="button" href=".?page={{ page_obj.next_page_number }}" hx-get=".?page={{ page_obj.next_page_number }}" hx-select=".left-column > *:not(.view-options)" hx-target=".pagination" hx-swap="outerHTML" {% if config_identity.infinite_scroll %}hx-trigger="revealed"{% endif %}>Next Page</a>
+            <a class="button"
+               href=".?page={{ page_obj.next_page_number }}"
+               hx-get=".?page={{ page_obj.next_page_number }}"
+               hx-select=".left-column > *:not(.view-options)"
+               hx-target=".pagination"
+               hx-swap="outerHTML"
+               {% if config_identity.infinite_scroll %}hx-trigger="revealed"{% endif %}>Next Page</a>
         {% endif %}
     </div>
 {% endblock %}

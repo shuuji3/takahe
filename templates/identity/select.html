@@ -1,7 +1,5 @@
 {% extends "identity/base.html" %}
-
 {% block title %}Select Identity{% endblock %}
-
 {% block content %}
     <section class="icon-menu">
         {% for identity in identities %}
@@ -11,7 +9,8 @@
                     {{ identity.html_name_or_handle }}
                     <small>@{{ identity.handle }}</small>
                 </span>
-                <button class="right secondary" _="on click go to url {{ identity.urls.view }} then halt">View</button>
+                <button class="right secondary"
+                        _="on click go to url {{ identity.urls.view }} then halt">View</button>
             </a>
         {% empty %}
             <p class="option empty">You have no identities.</p>

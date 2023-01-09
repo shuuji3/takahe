@@ -1,7 +1,5 @@
 {% extends "base.html" %}
-
 {% block title %}Notifications{% endblock %}
-
 {% block content %}
     <div class="view-options">
         {% if notification_options.followed %}
@@ -25,20 +23,23 @@
             <a href=".?mentioned=true"><i class="fa-solid fa-xmark"></i> Mentions</a>
         {% endif %}
     </div>
-
     {% for event in events %}
         {% include "activities/_event.html" %}
     {% empty %}
         No notifications yet.
     {% endfor %}
-
     <div class="pagination">
         {% if page_obj.has_previous and not request.htmx %}
             <a class="button" href=".?page={{ page_obj.previous_page_number }}">Previous Page</a>
         {% endif %}
-
         {% if page_obj.has_next %}
-            <a class="button" href=".?page={{ page_obj.next_page_number }}" hx-get=".?page={{ page_obj.next_page_number }}" hx-select=".left-column > *:not(.view-options)" hx-target=".pagination" hx-swap="outerHTML" {% if config_identity.infinite_scroll %}hx-trigger="revealed"{% endif %}>Next Page</a>
+            <a class="button"
+               href=".?page={{ page_obj.next_page_number }}"
+               hx-get=".?page={{ page_obj.next_page_number }}"
+               hx-select=".left-column > *:not(.view-options)"
+               hx-target=".pagination"
+               hx-swap="outerHTML"
+               {% if config_identity.infinite_scroll %}hx-trigger="revealed"{% endif %}>Next Page</a>
         {% endif %}
     </div>
 {% endblock %}

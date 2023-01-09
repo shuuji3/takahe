@@ -1,15 +1,17 @@
 {% extends "identity/base.html" %}
-
 {% block title %}Create Identity{% endblock %}
-
 {% block content %}
     <form action="." method="POST">
         <h1>Create New Identity</h1>
-        <p>You can have multiple identities - they are totally separate, and share
-        nothing apart from your login details. Use them for alternates, projects, and more.</p>
+        <p>
+            You can have multiple identities - they are totally separate, and share
+            nothing apart from your login details. Use them for alternates, projects, and more.
+        </p>
         {% csrf_token %}
         <fieldset>
-            <legend>Identity Details</legend>
+            <legend>
+                Identity Details
+            </legend>
             {% include "forms/_field.html" with field=form.username %}
             {% include "forms/_field.html" with field=form.domain %}
             {% include "forms/_field.html" with field=form.name %}

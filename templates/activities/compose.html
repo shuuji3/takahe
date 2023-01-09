@@ -1,12 +1,12 @@
 {% extends "base.html" %}
-
 {% block title %}Compose{% endblock %}
-
 {% block content %}
     <form action="." method="POST">
         {% csrf_token %}
         <fieldset>
-            <legend>Content</legend>
+            <legend>
+                Content
+            </legend>
             {% if reply_to %}
                 <label>Replying to</label>
                 {% include "activities/_mini_post.html" with post=reply_to %}
@@ -18,7 +18,9 @@
             {% include "forms/_field.html" with field=form.visibility %}
         </fieldset>
         <fieldset>
-            <legend>Images</legend>
+            <legend>
+                Images
+            </legend>
             {% if post %}
                 {% for attachment in post.attachments.all %}
                     {% include "activities/_image_uploaded.html" %}
@@ -26,16 +28,24 @@
             {% endif %}
             {% if not post or post.attachments.count < 4 %}
                 <button class="add-image"
-                    hx-get='{% url "compose_image_upload" %}'
-                    hx-target="this"
-                    hx-swap="outerHTML">
+                        hx-get='{% url "compose_image_upload" %}'
+                        hx-target="this"
+                        hx-swap="outerHTML">
                     Add Image
                 </button>
             {% endif %}
         </fieldset>
         <div class="buttons">
             <span id="character-counter">{{ config.post_length }}</span>
-            <button id="post-button">{% if post %}Save Edits{% elif config_identity.toot_mode %}Toot!{% else %}Post{% endif %}</button>
+            <button id="post-button">
+                {% if post %}
+                    Save Edits
+                {% elif config_identity.toot_mode %}
+                    Toot!
+                {% else %}
+                    Post
+                {% endif %}
+            </button>
         </div>
     </form>
 {% endblock %}

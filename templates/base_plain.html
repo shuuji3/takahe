@@ -1,11 +1,8 @@
 {% extends "base.html" %}
-
 {% block body_class %}no-sidebar{% endblock %}
-
 {% block opengraph %}
     {# Error pages don't have the context loaded, so disable opengraph to keep it from spewing errors #}
 {% endblock %}
-
 {% block body_main %}
     <header>
         <menu>
@@ -25,14 +22,11 @@
             {% endif %}
         </menu>
     </header>
-
     <div id="main-content">
         {% include "activities/_image_viewer.html" %}
-        {% block content %}
-        {% endblock %}
+        {% block content %}{% endblock %}
     </div>
 {% endblock %}
-
 {% block footer %}
     {% include "_footer.html" %}
 {% endblock %}

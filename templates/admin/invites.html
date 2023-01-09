@@ -1,8 +1,6 @@
 {% extends "settings/base.html" %}
 {% load activity_tags %}
-
 {% block subtitle %}Invites{% endblock %}
-
 {% block content %}
     <form>
         <div class="buttons">
@@ -15,15 +13,12 @@
                 <i class="fa-solid fa-envelope"></i>
                 <span class="handle">
                     {{ invite.token }}
-
                     <small>
                         {% if invite.expires %}
                             Expires in {{ invite.expires|timeuntil }}
                             {% if invite.note %}|{% endif %}
                         {% endif %}
-                        {% if invite.note %}
-                            {{ invite.note }}
-                        {% endif %}
+                        {% if invite.note %}{{ invite.note }}{% endif %}
                     </small>
                 </span>
                 <time>
@@ -35,20 +30,16 @@
                 </time>
             </a>
         {% empty %}
-            <p class="option empty">
-                There are no unused invites.
-            </p>
+            <p class="option empty">There are no unused invites.</p>
         {% endfor %}
         <div class="pagination">
             {% if page_obj.has_previous %}
                 <a class="button" href=".?page={{ page_obj.previous_page_number }}">Previous Page</a>
             {% endif %}
             {% if page_obj.paginator.count %}
-                <span class="count">{{ page_obj.paginator.count }} invite{{page_obj.paginator.count|pluralize }}</span>
+                <span class="count">{{ page_obj.paginator.count }} invite{{ page_obj.paginator.count|pluralize }}</span>
             {% endif %}
-            {% if page_obj.has_next %}
-                <a class="button" href=".?page={{ page_obj.next_page_number }}">Next Page</a>
-            {% endif %}
+            {% if page_obj.has_next %}<a class="button" href=".?page={{ page_obj.next_page_number }}">Next Page</a>{% endif %}
         </div>
     </section>
 {% endblock %}

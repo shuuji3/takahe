@@ -1,12 +1,12 @@
 {% extends "base_plain.html" %}
-
 {% block title %}Login{% endblock %}
-
 {% block content %}
     <form action="." method="POST">
         {% csrf_token %}
         <fieldset>
-            <legend>Login</legend>
+            <legend>
+                Login
+            </legend>
             {{ form.non_field_errors }}
             {% for field in form %}
                 {% include "forms/_field.html" %}

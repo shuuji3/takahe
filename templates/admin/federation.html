@@ -1,11 +1,14 @@
 {% extends "settings/base.html" %}
-
 {% block subtitle %}Federation{% endblock %}
-
 {% block content %}
     <form action="." class="search">
-        <input type="search" name="query" value="{{ query }}" placeholder="Search by domain">
-        <button><i class="fa-solid fa-search"></i></button>
+        <input type="search"
+               name="query"
+               value="{{ query }}"
+               placeholder="Search by domain">
+        <button>
+            <i class="fa-solid fa-search"></i>
+        </button>
     </form>
     <section class="icon-menu">
         {% for domain in page_obj %}
@@ -13,13 +16,9 @@
                 <i class="fa-solid fa-globe"></i>
                 <span class="handle">
                     {{ domain.domain }}
-                    <small>
-                        {{ domain.num_users }} remote identit{{ domain.num_users|pluralize:"y,ies" }}
-                    </small>
+                    <small>{{ domain.num_users }} remote identit{{ domain.num_users|pluralize:"y,ies" }}</small>
                 </span>
-                {% if domain.blocked %}
-                    <span class="pill bad">Blocked</span>
-                {% endif %}
+                {% if domain.blocked %}<span class="pill bad">Blocked</span>{% endif %}
             </a>
         {% empty %}
             <p class="option empty">There are no federation links yet.</p>
@@ -29,11 +28,9 @@
                 <a class="button" href=".?page={{ page_obj.previous_page_number }}">Previous Page</a>
             {% endif %}
             {% if page_obj.paginator.count %}
-                <span class="count">{{ page_obj.paginator.count }} domain{{page_obj.paginator.count|pluralize }}</span>
+                <span class="count">{{ page_obj.paginator.count }} domain{{ page_obj.paginator.count|pluralize }}</span>
             {% endif %}
-            {% if page_obj.has_next %}
-                <a class="button" href=".?page={{ page_obj.next_page_number }}">Next Page</a>
-            {% endif %}
+            {% if page_obj.has_next %}<a class="button" href=".?page={{ page_obj.next_page_number }}">Next Page</a>{% endif %}
         </div>
     </section>
 {% endblock %}

@@ -1,9 +1,13 @@
 <nav>
-    <a href="/" {% if current_page == "home" %}class="selected"{% endif %} title="Home">
+    <a href="/"
+       {% if current_page == "home" %}class="selected"{% endif %}
+       title="Home">
         <i class="fa-solid fa-home"></i> Home
     </a>
     {% if request.user.is_authenticated %}
-        <a href="{% url "notifications" %}" {% if current_page == "notifications" %}class="selected"{% endif %} title="Notifications">
+        <a href="{% url "notifications" %}"
+           {% if current_page == "notifications" %}class="selected"{% endif %}
+           title="Notifications">
             <i class="fa-solid fa-at"></i> Notifications
         </a>
         {% comment %}
@@ -12,60 +16,90 @@
             <i class="fa-solid fa-hashtag"></i> Explore
         </a>
         {% endcomment %}
-        <a href="{% url "local" %}" {% if current_page == "local" %}class="selected"{% endif %} title="Local">
+        <a href="{% url "local" %}"
+           {% if current_page == "local" %}class="selected"{% endif %}
+           title="Local">
             <i class="fa-solid fa-city"></i> Local
         </a>
-        <a href="{% url "federated" %}" {% if current_page == "federated" %}class="selected"{% endif %} title="Federated">
+        <a href="{% url "federated" %}"
+           {% if current_page == "federated" %}class="selected"{% endif %}
+           title="Federated">
             <i class="fa-solid fa-globe"></i> Federated
         </a>
-        <a href="{% url "follows" %}" {% if section == "follows" %}class="selected"{% endif %} title="Follows">
+        <a href="{% url "follows" %}"
+           {% if section == "follows" %}class="selected"{% endif %}
+           title="Follows">
             <i class="fa-solid fa-arrow-right-arrow-left"></i> Follows
         </a>
         <h3></h3>
-        <a href="{% url "compose" %}" {% if top_section == "compose" %}class="selected"{% endif %} title="Compose">
+        <a href="{% url "compose" %}"
+           {% if top_section == "compose" %}class="selected"{% endif %}
+           title="Compose">
             <i class="fa-solid fa-feather"></i> Compose
         </a>
-        <a href="{% url "search" %}" {% if top_section == "search" %}class="selected"{% endif %} title="Search">
+        <a href="{% url "search" %}"
+           {% if top_section == "search" %}class="selected"{% endif %}
+           title="Search">
             <i class="fa-solid fa-search"></i> Search
         </a>
         {% if current_page == "tag" %}
-        <a href="{% url "tag" hashtag.hashtag %}" class="selected" title="Tag {{ hashtag.display_name }}">
-            <i class="fa-solid fa-hashtag"></i> {{ hashtag.display_name }}
-        </a>
+            <a href="{% url "tag" hashtag.hashtag %}"
+               class="selected"
+               title="Tag {{ hashtag.display_name }}">
+                <i class="fa-solid fa-hashtag"></i> {{ hashtag.display_name }}
+            </a>
         {% endif %}
-        <a href="{% url "settings" %}" {% if top_section == "settings" %}class="selected"{% endif %} title="Settings">
+        <a href="{% url "settings" %}"
+           {% if top_section == "settings" %}class="selected"{% endif %}
+           title="Settings">
             <i class="fa-solid fa-gear"></i> Settings
         </a>
         <a href="{% url "identity_select" %}" title="Select Identity">
             <i class="fa-solid fa-users-viewfinder"></i> Select Identity
         </a>
     {% else %}
-        <a href="{% url "local" %}" {% if current_page == "local" %}class="selected"{% endif %} title="Local Posts">
+        <a href="{% url "local" %}"
+           {% if current_page == "local" %}class="selected"{% endif %}
+           title="Local Posts">
             <i class="fa-solid fa-city"></i> Local Posts
         </a>
-        <a href="{% url "explore" %}" {% if current_page == "explore" %}class="selected"{% endif %} title="Explore">
+        <a href="{% url "explore" %}"
+           {% if current_page == "explore" %}class="selected"{% endif %}
+           title="Explore">
             <i class="fa-solid fa-hashtag"></i> Explore
         </a>
         <h3></h3>
         {% if config.signup_allowed %}
-            <a href="{% url "signup" %}" {% if current_page == "signup" %}class="selected"{% endif %} title="Create Account">
+            <a href="{% url "signup" %}"
+               {% if current_page == "signup" %}class="selected"{% endif %}
+               title="Create Account">
                 <i class="fa-solid fa-user-plus"></i> Create Account
             </a>
         {% endif %}
     {% endif %}
 </nav>
-
 {% if current_page == "home" %}
     <h2>Compose</h2>
     <form action="/compose/" method="POST" class="compose">
         {% csrf_token %}
         {{ form.text }}
         {{ form.content_warning }}
-        <input type="hidden" name="visibility" value="{{ config_identity.default_post_visibility }}">
+        <input type="hidden"
+               name="visibility"
+               value="{{ config_identity.default_post_visibility }}">
         <div class="buttons">
             <span id="character-counter">{{ config.post_length }}</span>
-            <button class="toggle" _="on click or keyup[key is 'Enter'] toggle .enabled then toggle .hidden on #id_content_warning">CW</button>
-            <button id="post-button">{% if config_identity.toot_mode %}Toot!{% else %}Post{% endif %}</button>
+            <button class="toggle"
+                    _="on click or keyup[key is 'Enter'] toggle .enabled then toggle .hidden on #id_content_warning">
+                CW
+            </button>
+            <button id="post-button">
+                {% if config_identity.toot_mode %}
+                    Toot!
+                {% else %}
+                    Post
+                {% endif %}
+            </button>
         </div>
     </form>
 {% endif %}
