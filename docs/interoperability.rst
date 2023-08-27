@@ -34,7 +34,7 @@ These servers are known to fully work as far as Takahē's
 * Mastodon 4.0 and higher
 
 
-These servers have been tried and appear to initally work, but more testing is
+These servers have been tried and appear to initially work, but more testing is
 needed:
 
 * Akkoma
@@ -48,6 +48,10 @@ needed:
 * Pleroma
 
 * Mitra
+
+* Misskey
+
+* Firefish
 
 
 These servers have the beginnings of support but known bugs that need fixing:
